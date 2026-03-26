@@ -6,6 +6,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from typing import Optional
+from urllib.parse import urlparse
 
 import numpy as np
 import requests
@@ -129,7 +130,10 @@ class ImageLabApp:
         self.log_toggle_btn.pack(side="right")
 
         self.controls_toggle_btn = ttk.Button(
-            top, text="Скрыть панель", command=self.toggle_controls, bootstyle="secondary"
+            top,
+            text="Скрыть панель",
+            command=self.toggle_controls,
+            bootstyle="secondary",
         )
         self.controls_toggle_btn.pack(side="right", padx=(0, 6))
 
@@ -316,7 +320,9 @@ class ImageLabApp:
             )
             cell.grid(row=row, column=col, padx=4, pady=4)
             cell.bind("<Button-1>", lambda _e, u=url: self.load_sample_from_url(u))
-            self.sample_gallery_items.append({"url": url, "canvas": cell, "image": None})
+            self.sample_gallery_items.append(
+                {"url": url, "canvas": cell, "image": None}
+            )
 
         self._start_thumb_loader()
 
@@ -388,6 +394,7 @@ class ImageLabApp:
                 resp.raise_for_status()
                 image = Image.open(io.BytesIO(resp.content)).convert("RGB")
                 self._save_cache_image(url, image)
+                image = self._load_cached_image(url) or image
             arr = np.array(image, dtype=np.uint8)
             self.state.path = url
             self.state.image = arr
@@ -400,12 +407,19 @@ class ImageLabApp:
             self.lab4_gy = None
             self.lab4_g = None
             self.lab4_binary = None
-            name = url.split("/")[-1] or "sample"
-            self.info_var.set(f"{name} — {arr.shape[1]}x{arr.shape[0]}")
+            display_name = self._sample_display_name(url)
+            self.info_var.set(f"{display_name} — {arr.shape[1]}x{arr.shape[0]}")
             self._update_previews(arr, None)
-            self._append_log(f"Загружен sample: {url}")
+            self._append_log(f"Загружен sample (PNG): {display_name}")
         except Exception as exc:
             messagebox.showerror("Ошибка", str(exc))
+
+    @staticmethod
+    def _sample_display_name(url: str) -> str:
+        path = urlparse(url).path
+        name = os.path.basename(path) or "sample"
+        stem, _ = os.path.splitext(name)
+        return f"{stem}.png"
 
     def _cache_paths(self, url: str) -> tuple[str, str]:
         key = hashlib.sha1(url.encode("utf-8")).hexdigest()
@@ -645,7 +659,8 @@ class ImageLabApp:
                 self._toggle_samples_sidebar()
             self._append_log(f"{label}: загружено sample-изображений: {len(paths)}")
             if paths:
-                self._append_log(f"{label}: первый sample: {paths[0]}")
+                display_name = self._sample_display_name(paths[0])
+                self._append_log(f"{label}: первый sample (PNG): {display_name}")
             messagebox.showinfo("Готово", f"{label}: загружено {len(paths)} файлов.")
         except Exception as exc:
             messagebox.showerror("Ошибка", str(exc))
@@ -667,7 +682,11 @@ class ImageLabApp:
             self.controls_toggle_btn.configure(text="Показать панель")
             self.controls_visible = False
         else:
-            self.controls_outer.pack(in_=self.controls_outer_parent, before=self.preview_wrap, **self.controls_outer_pack)
+            self.controls_outer.pack(
+                in_=self.controls_outer_parent,
+                before=self.preview_wrap,
+                **self.controls_outer_pack,
+            )
             self.controls_toggle_btn.configure(text="Скрыть панель")
             self.controls_visible = True
 
