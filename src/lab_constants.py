@@ -1,0 +1,2 @@
+ALLOWED_EXTENSIONS = {".png", ".bmp"}
+PREVIEW_MAX_SIZE = (420, 320)
